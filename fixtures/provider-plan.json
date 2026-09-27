@@ -1,0 +1,6 @@
+{
+  "[\"demo-a\",\"main\",\"retry\"]": [429, 503, 200],
+  "[\"demo-a\",\"main\",\"permanent\"]": [422],
+  "[\"demo-a\",\"main\",\"exhaust\"]": [503, 503, 503],
+  "[\"demo-a\",\"main\",\"failed-high\"]": [422]
+}

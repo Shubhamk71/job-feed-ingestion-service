@@ -15,3 +15,13 @@ The first likely bottleneck is queue polling/claim index contention and provider
 Reads require tenant scope, with source mandatory for event identity lookup. Demo tenant IDs are trusted. Production must derive authorized tenants from authenticated credentials, enforce source permissions, and apply per-tenant quotas. Cursors provide a live traversal by immutable _id, not a snapshot: updates can change membership; newly inserted IDs above the cursor may appear and records moving behind it are not revisited.
 
 Status meanings: pending = accepted; processing = leased; retry_wait = delayed retry; completed = applied or stale; failed = terminal. A completed stale event may have no provider attempts. Health means API/database/index readiness, not worker liveness.
+
+## Final implementation boundaries
+
+The API rejects unknown event/payload fields. Canonical JSON is stored directly rather than hashing it, avoiding hash-collision assumptions for replay equality; this costs storage. Invalid requests are checked before identity reservation. Concurrent insert losers read the winner and compare canonical JSON. All input values enter MongoDB through validated fields; aggregation literals protect dollar-prefixed display values.
+
+The job update pipeline replaces state only when its incoming version exceeds the current version. A concurrent first-insert duplicate-key error retries as a non-upsert guarded update. The update result distinguishes applied from stale. Payload is removed on archive; the tombstone and version remain. Claims and acknowledgment are single-document operations. Claim tokens fence completion but do not provide exactly-once provider invocation. Infrastructure errors leave processing leases to expire; no work is silently discarded.
+
+Worker result records can retain lastError after successful recovery as historical context. An interrupted attempt can have no finishedAt until recovery starts another attempt; if recovery discovers the version already applied or the budget exhausted, the missing result itself records the uncertainty. A lease can expire during prolonged DB stalls. An old worker's successfully verified projection write remains safe under the version guard, while its acknowledgment is fenced. Production cancellation/renewal is not implemented.
+
+Health is registered only after startup connects and creates indexes; subsequent health calls ping MongoDB. It does not continuously re-audit indexes or provider/worker liveness. Core retention is indefinite; safe production retention is described in SCALE.md. No TTL deletes pending events or archive tombstones.

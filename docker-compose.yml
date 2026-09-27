@@ -1,0 +1,31 @@
+services:
+  mongo:
+    image: mongo:8.0
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  api:
+    build: .
+    command: ["node", "dist/src/main.js", "api"]
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+    depends_on:
+      mongo:
+        condition: service_healthy
+  worker:
+    build: .
+    command: ["node", "dist/src/main.js", "worker"]
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      WORKER_LOOPS: 2
+    depends_on:
+      mongo:
+        condition: service_healthy
+volumes:
+  mongo-data:
